@@ -51,17 +51,7 @@ def is_unary(string: str) -> bool:
 
 @lru_cache(maxsize=100) # Cache the return value of is_binary
 def is_binary(string: str) -> bool:
-    """Checks if the given string is a binary operator.
-
-    Parameters:
-        string: string to check.
-
-    Returns:
-        ``True`` if the given string is a binary operator, ``False`` otherwise.
-    """
-    return string == '&' or string == '|' or string == '->'
-    # For Chapter 3:
-    # return string in {'&', '|',  '->', '+', '<->', '-&', '-|'}
+    return string in {'&', '|',  '->', '+', '<->', '-&', '-|'}
 
 @frozen
 class Formula:
@@ -158,7 +148,6 @@ class Formula:
             return self.first.variables()
         assert is_binary(self.root)
         return self.first.variables().union(self.second.variables())
-
     @memoized_parameterless_method
     def operators(self) -> Set[str]:
         """Finds all operators in the current formula.
@@ -359,6 +348,16 @@ class Formula:
         """
         for variable in substitution_map:
             assert is_variable(variable)
+        if is_variable(self.root):
+            if self.root in substitution_map:
+                self = substitution_map[self.root]
+            return self
+        elif is_binary(self.root):
+            return Formula(self.root, Formula.substitute_variables(self.first, substitution_map), Formula.substitute_variables(self.second, substitution_map))
+        elif is_unary(self.root):
+            return Formula(self.root, Formula.substitute_variables(self.first, substitution_map))
+        elif is_constant(self.root):
+            return self
         # Task 3.3
 
     def substitute_operators(self, substitution_map: Mapping[str, Formula]) -> \
@@ -389,4 +388,24 @@ class Formula:
             assert is_constant(operator) or is_unary(operator) or \
                    is_binary(operator)
             assert substitution_map[operator].variables().issubset({'p', 'q'})
+        if is_variable(self.root):
+            return self
+        elif is_binary(self.root):
+            L = self.first.substitute_operators(substitution_map)
+            R = self.second.substitute_operators(substitution_map)
+            if self.root in substitution_map:
+                a = substitution_map[self.root]
+                return a.substitute_variables({'p': L, 'q': R})
+            return Formula(self.root, L, R)
+
+        elif is_unary(self.root):
+            L = self.first.substitute_operators(substitution_map)
+            if self.root in substitution_map:
+                a = substitution_map[self.root]
+                return a.substitute_variables({'p': L})
+            return Formula(self.root, L)
+        elif is_constant(self.root):
+            if self.root in substitution_map:
+                return substitution_map[self.root]
+            return self
         # Task 3.4
